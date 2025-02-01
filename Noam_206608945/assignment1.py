@@ -1,7 +1,3 @@
-"""
-In this assignment you should interpolate the given function.
-"""
-
 import numpy as np
 import time
 import random
@@ -10,55 +6,55 @@ import random
 class Assignment1:
     def __init__(self):
         """
-        Here goes any one time calculation that need to be made before 
+        Here goes any one-time calculation that needs to be made before
         starting to interpolate arbitrary functions.
         """
-
         pass
 
     def interpolate(self, f: callable, a: float, b: float, n: int) -> callable:
         """
-        Interpolate the function f in the closed range [a,b] using at most n 
+        Interpolate the function f in the closed range [a,b] using at most n
         points. Your main objective is minimizing the interpolation error.
-        Your secondary objective is minimizing the running time. 
-        The assignment will be tested on variety of different functions with 
-        large n values. 
-        
-        Interpolation error will be measured as the average absolute error at 
-        2*n random points between a and b. See test_with_poly() below. 
+        Your secondary objective is minimizing the running time.
 
-        Note: It is forbidden to call f more than n times. 
-
-        Note: This assignment can be solved trivially with running time O(n^2)
-        or it can be solved with running time of O(n) with some preprocessing.
-        **Accurate O(n) solutions will receive higher grades.** 
-        
-        Note: sometimes you can get very accurate solutions with only few points, 
-        significantly less than n. 
-        
         Parameters
         ----------
-        f : callable. it is the given function
-        a : float
-            beginning of the interpolation range.
-        b : float
-            end of the interpolation range.
-        n : int
-            maximal number of points to use.
+        f : callable. The given function
+        a : float - start of the interpolation range.
+        b : float - end of the interpolation range.
+        n : int - number of sample points allowed.
 
         Returns
         -------
-        The interpolating function.
+        A function g(x) that approximates f(x) via interpolation.
         """
+        # Use Chebyshev nodes for better accuracy
+        cheb_nodes = np.cos((2 * np.arange(n) + 1) / (2 * n) * np.pi) * (b - a) / 2 + (b + a) / 2
+        y_points = np.array([f(x) for x in cheb_nodes])  # Sampled function values
 
-        # replace this line with your solution to pass the second test
-        result = lambda x:x;
+        # Compute barycentric weights
+        w = np.ones(n)
+        for i in range(n):
+            for j in range(n):
+                if i != j:
+                    w[i] /= (cheb_nodes[i] - cheb_nodes[j])
 
-        return result
+        def interpolated_function(x):
+            """
+            Uses Barycentric Lagrange interpolation with Chebyshev nodes.
+            """
+            numer = 0
+            denom = 0
+            for i in range(n):
+                term = w[i] / (x - cheb_nodes[i]) if x != cheb_nodes[i] else float('inf')
+                numer += term * y_points[i]
+                denom += term
+            return numer / denom if denom != 0 else y_points[np.argmin(np.abs(cheb_nodes - x))]
+
+        return interpolated_function
 
 
 ##########################################################################
-
 
 import unittest
 from functionUtils import *
@@ -76,12 +72,10 @@ class TestAssignment1(unittest.TestCase):
         d = 30
         for i in tqdm(range(100)):
             a = np.random.randn(d)
-
             f = np.poly1d(a)
-
             ff = ass1.interpolate(f, -10, 10, 100)
 
-            xs = np.random.random(200)
+            xs = np.random.random(200) * 20 - 10  # Scale to [-10,10]
             err = 0
             for x in xs:
                 yy = ff(x)
@@ -101,9 +95,10 @@ class TestAssignment1(unittest.TestCase):
         a = np.random.randn(5)
         f = RESTRICT_INVOCATIONS(10)(np.poly1d(a))
         ff = ass1.interpolate(f, -10, 10, 10)
-        xs = np.random.random(20)
+        xs = np.random.random(20) * 20 - 10  # Scale to [-10,10]
         for x in xs:
             yy = ff(x)
+
 
 if __name__ == "__main__":
     unittest.main()
