@@ -76,3 +76,10 @@ class TestAssignment2(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+"""
+The solution first samples the function difference over a dense grid to detect sign changes, which indicate potential intersections.
+When a sign change is found, the Secant Method is used to refine the root location, ensuring precision within the given maxerr.
+This method efficiently finds intersection points without using restricted root-finding functions, balancing accuracy and computational efficiency.
+The implementation ensures robust performance for various types of functions, including polynomials and oscillatory functions.
+"""

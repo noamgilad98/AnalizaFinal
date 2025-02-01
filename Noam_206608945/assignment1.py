@@ -102,3 +102,10 @@ class TestAssignment1(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+"""
+The interpolation function uses Chebyshev nodes to minimize Runge’s phenomenon and improve accuracy.
+It applies Barycentric Lagrange interpolation, which allows for efficient evaluation in 𝑂(𝑛) time.
+The method ensures that the function is sampled at most n times while maintaining a low interpolation error.
+The implementation is optimized for both accuracy and speed, making it highly effective for polynomial functions.
+"""
