@@ -73,18 +73,17 @@ def test_roots(f1,f2, res, gt, maxerr):
                break
     return err
 
-class Grader:
+class Grader():
     def __init__(self, dir_path):
-        self.reports = []
-        self.dir_path = dir_path
-
-    def create_res_file(self, res_path):
-        """Creates res1.csv if it does not exist."""
-        fieldnames = ['time', 'error']
-        with open(res_path, 'w', newline='', encoding='utf-16') as f:
-            writer = csv.DictWriter(f, delimiter='\t', fieldnames=fieldnames)
-            writer.writeheader()
-            print(f"Created missing file: {res_path}")
+        try:
+            sys.path.append(dir_path)
+        except Exception as e:
+            print(e)
+        self.reports=[]
+        self.dir_path=dir_path
+        self.student_file = self.dir_path.split('/')[-1]
+        self.student_name = self.student_file.split('_')[0]
+        self.student_number = self.student_file.split('_')[1]
 
 
     def grade_assignment(self,to_grade_func,params,assignment_name,err_funcs,expected_results,repeats=1):

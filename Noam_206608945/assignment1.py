@@ -3,67 +3,68 @@ import numpy as np
 
 class Assignment1:
     def __init__(self):
+        """
+        Initialize any precomputed values needed for barycentric interpolation
+        """
         pass
+
+    def _get_chebyshev_points(self, a: float, b: float, n: int) -> np.ndarray:
+        """
+        Generate Chebyshev points in the interval [a,b]
+        These points minimize Runge's phenomenon and provide better interpolation
+        """
+        # Compute Chebyshev nodes in [-1,1]
+        k = np.arange(n)
+        points = np.cos((2 * k + 1) * np.pi / (2 * n))
+
+        # Scale points to [a,b]
+        return 0.5 * (b - a) * points + 0.5 * (b + a)
 
     def interpolate(self, f: callable, a: float, b: float, n: int) -> callable:
         """
-        Implements barycentric interpolation for optimal error reduction.
-        Uses Chebyshev nodes for polynomial interpolation and adaptive nodes for special functions.
+        Interpolate the function f in the closed range [a,b] using at most n points.
 
-        Args:
-            f (callable): Function to interpolate
-            a (float): Left boundary of interval
-            b (float): Right boundary of interval
-            n (int): Number of interpolation points
+        Parameters:
+        -----------
+        f : callable - the function to interpolate
+        a : float - start of interval
+        b : float - end of interval
+        n : int - maximum number of points to use
+
+        Returns:
+        --------
+        callable - the interpolating function
         """
-        # Choose nodes based on function type
-        if "sin" in f.__name__ and ("x^2" in f.__name__ or "1/x" in f.__name__):
-            if "1/x" in f.__name__:
-                # Geometric spacing for 1/x type functions
-                x_points = np.geomspace(max(a, 1e-10), b, n)
-            else:
-                # Square root spacing for x^2 type functions
-                t = np.linspace(np.sqrt(max(0, a)), np.sqrt(b), n)
-                x_points = t * t
-        else:
-            # Use Chebyshev nodes for better polynomial interpolation
-            # Map Chebyshev nodes from [-1,1] to [a,b]
-            k = np.arange(n)
-            chebyshev = -np.cos((2 * k + 1) * np.pi / (2 * n))  # Chebyshev nodes of second kind
-            x_points = 0.5 * ((b - a) * chebyshev + (b + a))
+        # Use Chebyshev points for better interpolation
+        x = self._get_chebyshev_points(a, b, n)
 
-        y_points = np.array([f(x) for x in x_points])
+        # Evaluate function at these points
+        y = np.array([f(xi) for xi in x])
 
-        # Compute barycentric weights
-        weights = np.ones(n)
+        # Precompute weights for barycentric interpolation
+        w = np.ones(n)
         for i in range(n):
             for j in range(n):
                 if j != i:
-                    weights[i] *= (x_points[i] - x_points[j])
-        weights = 1.0 / weights
+                    w[i] *= 1.0 / (x[i] - x[j])
 
-        def interpolated_function(x):
-            """Evaluate the interpolant at x using barycentric formula"""
-            # Handle boundary cases
-            if x <= a:
-                return y_points[0]
-            if x >= b:
-                return y_points[-1]
-
-            # Check if x is exactly at a node
-            if x in x_points:
-                return y_points[x_points == x][0]
+        def interpolant(x_eval):
+            """
+            Evaluate the interpolant at x_eval using barycentric formula
+            """
+            # Handle the case when x_eval is exactly one of the nodes
+            for i, xi in enumerate(x):
+                if np.abs(x_eval - xi) < 1e-14:
+                    return y[i]
 
             # Compute barycentric interpolation
-            numerator = 0.0
-            denominator = 0.0
+            numer = 0.0
+            denom = 0.0
+            for i in range(n):
+                temp = w[i] / (x_eval - x[i])
+                numer += temp * y[i]
+                denom += temp
 
-            # Efficient vectorized computation
-            diff = x - x_points
-            terms = weights / diff
-            numerator = np.sum(terms * y_points)
-            denominator = np.sum(terms)
+            return numer / denom
 
-            return numerator / denominator
-
-        return interpolated_function
+        return interpolant
