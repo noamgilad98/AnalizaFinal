@@ -1,77 +1,76 @@
 import numpy as np
 import time
-import random
-
+from typing import Callable, Tuple
 
 class Assignment4:
     def __init__(self):
-        """
-        Initialization method for any one-time calculations before solving the assignment.
-        """
         pass
 
-    def fit(self, f: callable, a: float, b: float, d: int, maxtime: float) -> callable:
+    def _sample_points(self, f: Callable[[float], float], a: float, b: float, num_points: int) -> Tuple[np.ndarray, np.ndarray]:
         """
-        Fit a polynomial function to noisy data sampled from f using least squares approximation.
+        Sample points from the function with uniform spacing.
+        """
+        x = np.linspace(a, b, num_points)
+        y = np.array([f(xi) for xi in x])  # Function evaluation
+        return x, y
+
+    def _gaussian_elimination(self, A: np.ndarray, b: np.ndarray) -> np.ndarray:
+        """
+        Solve Ax = b using Gaussian elimination without relying on NumPy's built-in solvers.
+        """
+        n = len(b)
+        for i in range(n):
+            # Partial pivoting to improve numerical stability
+            max_row = i + np.argmax(abs(A[i:, i]))
+            if i != max_row:
+                A[[i, max_row]] = A[[max_row, i]]
+                b[[i, max_row]] = b[[max_row, i]]
+
+            # Make the diagonal element 1
+            for j in range(i + 1, n):
+                factor = A[j, i] / A[i, i]
+                A[j, i:] -= factor * A[i, i:]
+                b[j] -= factor * b[i]
+
+        # Back-substitution
+        x = np.zeros(n)
+        for i in range(n - 1, -1, -1):
+            x[i] = (b[i] - np.dot(A[i, i + 1:], x[i + 1:])) / A[i, i]
+        return x
+
+    def _fit_polynomial(self, x: np.ndarray, y: np.ndarray, degree: int) -> np.ndarray:
+        """
+        Fit a polynomial using normal equations, solved manually via Gaussian elimination.
+        """
+        A = np.vander(x, degree + 1)
+        ATA = A.T @ A
+        ATy = A.T @ y
+        return self._gaussian_elimination(ATA, ATy)
+
+    def fit(self, f: Callable[[float], float], a: float, b: float, d: int, maxtime: float) -> Callable[[float], float]:
+        """
+        Build a function that fits the noisy data points sampled from f.
         """
         start_time = time.time()
-        num_samples = min(2000, int((b - a) * 200))  # Increased sample density
-        x_samples = np.linspace(a, b, num_samples)
-        y_samples = np.array([f(x) for x in x_samples])
 
-        # Construct Vandermonde matrix
-        X = np.vander(x_samples, d + 1, increasing=True)
+        # Determine number of sample points
+        num_points = min(max(10 * d, 50), 1000)
+        x, y = self._sample_points(f, a, b, num_points)
 
-        # Solve normal equations for polynomial coefficients
-        coeffs = np.linalg.pinv(X) @ y_samples  # More stable than lstsq
+        # If running out of time, return a linear approximation
+        if time.time() - start_time > maxtime - 0.2:
+            slope = (y[-1] - y[0]) / (x[-1] - x[0])
+            intercept = y[0] - slope * x[0]
+            return lambda x_val: slope * x_val + intercept
 
-        # Ensure function returns within maxtime
-        if time.time() - start_time >= maxtime:
-            return lambda x: np.polyval(coeffs[::-1], x)
+        # Fit polynomial using manually solved normal equations
+        coeffs = self._fit_polynomial(x, y, d)
 
-        return lambda x: np.polyval(coeffs[::-1], x)
+        # Polynomial function using Horner's method
+        def fitted_function(x_val: float) -> float:
+            result = coeffs[0]
+            for c in coeffs[1:]:
+                result = result * x_val + c
+            return float(result)
 
-
-##########################################################################
-
-import unittest
-from sampleFunctions import *
-from tqdm import tqdm
-
-
-class TestAssignment4(unittest.TestCase):
-
-    def test_return(self):
-        f = NOISY(0.01)(poly(1, 1, 1))
-        ass4 = Assignment4()
-        T = time.time()
-        shape = ass4.fit(f=f, a=0, b=1, d=10, maxtime=5)
-        T = time.time() - T
-        self.assertLessEqual(T, 5)
-
-    def test_delay(self):
-        f = DELAYED(7)(NOISY(0.01)(poly(1, 1, 1)))
-
-        ass4 = Assignment4()
-        T = time.time()
-        shape = ass4.fit(f=f, a=0, b=1, d=10, maxtime=5)
-        T = time.time() - T
-        self.assertGreaterEqual(T, 5)
-
-    def test_err(self):
-        f = poly(1, 1, 1)
-        nf = NOISY(1)(f)
-        ass4 = Assignment4()
-        T = time.time()
-        ff = ass4.fit(f=nf, a=0, b=1, d=10, maxtime=5)
-        T = time.time() - T
-        mse = 0
-        for x in np.linspace(0, 1, 1000):
-            self.assertNotEquals(f(x), nf(x))
-            mse += (f(x) - ff(x)) ** 2
-        mse = mse / 1000
-        print(mse)
-
-
-if __name__ == "__main__":
-    unittest.main()
+        return fitted_function
