@@ -47,26 +47,69 @@ class Assignment3:
             return np.float32(self.gaussian_quadrature(f, a, b, n=10))
 
     def areabetween(self, f1: callable, f2: callable) -> np.float32:
-        """
-        Finds the area enclosed between two functions.
-        """
-        from assignment2 import Assignment2
+        def solve_point(fn, p1, p2, eps=1e-8, max_it=15):
+            # Try iterative method first
+            x = p1
+            for _ in range(max_it):
+                y = fn(x)
+                if abs(y) < eps: return x
+                d = (fn(x + eps) - y) / eps
+                if abs(d) < eps:
+                    # Fall back to division method
+                    while abs(p2 - p1) > eps:
+                        m = (p1 + p2) / 2
+                        if abs(fn(m)) < eps:
+                            return m
+                        elif np.sign(fn(p1)) == np.sign(fn(m)):
+                            p1 = m
+                        else:
+                            p2 = m
+                    return (p1 + p2) / 2
+                x = x - y / d
+            return (p1 + p2) / 2
 
-        ass2 = Assignment2()
-        intersections = ass2.intersections(f1, f2, -100, 100, maxerr=0.001)
+        fn = lambda x: f1(x) - f2(x)
+        pts = np.linspace(1, 100, 150)
+        ys = np.array([fn(x) for x in pts])
+        x1 = x2 = n = 0
 
-        if len(intersections) < 2:
-            return np.float32(np.nan)
+        if abs(ys[0]) > 1e-8:
+            for i in range(len(pts) - 1):
+                if ys[i] * ys[i + 1] < 0:
+                    x1 = solve_point(fn, pts[i], pts[i + 1])
+                    n += 1
+                    if abs(ys[-1]) > 1e-8:
+                        for j in range(len(pts) - 1, i, -1):
+                            if ys[j] * ys[j - 1] < 0:
+                                x2 = solve_point(fn, pts[j - 1], pts[j])
+                                n += 1
+                                break
+                    else:
+                        x2, n = pts[-1], n + 1
+                    break
+        else:
+            x1, n = pts[0], 1
+            if abs(ys[-1]) > 1e-8:
+                for j in range(len(pts) - 1, 0, -1):
+                    if ys[j] * ys[j - 1] < 0:
+                        x2 = solve_point(fn, pts[j - 1], pts[j])
+                        n += 1
+                        break
+            else:
+                x2, n = pts[-1], n + 1
 
-        total_area = np.float32(0.0)
-        for i in range(len(intersections) - 1):
-            a, b = intersections[i], intersections[i + 1]
-            abs_diff = lambda x: abs(f1(x) - f2(x))
-            total_area += self.integrate(abs_diff, a, b, 2000)  # Increased sample density
+        if n <= 1 or abs(x2 - x1) <= 0.002: return np.float32(None)
 
-        return np.float32(total_area)
+        fn = lambda x: abs(f1(x) - f2(x))
+        k = int((x2 - x1) * 40)
+        if k % 2 == 0: k += 1
+        h = (x2 - x1) / (k - 1)
+        xs = np.linspace(x1, x2, k)
+        ys = np.array([fn(x) for x in xs])
+        even = sum(ys[2:-1:2])
+        odd = sum(ys[1:-1:2])
 
-
+        return np.float32(h / 3 * (ys[0] + 4 * odd + 2 * even + ys[-1]))
 ##########################################################################
 
 import unittest

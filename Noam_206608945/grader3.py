@@ -49,7 +49,7 @@ class Grader:
         self.dir_path = dir_path
         # Last year's error values
         self.last_year_errors = [
-            0.00E+00, 5.09E-06, 4.08E-01, 1.24E-06, 0.00E+00
+            0.00E+00, 5.09E-06, 4.08E-01, 1.24E-06, 0.00E+00, 1
         ]
 
     def create_res_file(self, res_path):
@@ -183,7 +183,8 @@ class Grader:
                 })
 
     def grade(self):
-        self.grade_assignment_3()
+        # self.grade_assignment_3()
+        self.grade_assignment_3_areabetween()
         self.report()
         sys.path.remove(self.dir_path)
 
