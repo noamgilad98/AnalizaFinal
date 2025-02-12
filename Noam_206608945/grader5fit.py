@@ -49,8 +49,13 @@ class Grader:
         self.dir_path = dir_path
         # Last year's error values
         self.last_year_errors = [
-            0.006122, 0.000255, 0.000714, 0.006987, 2.66E-16,
-            0.001902, 132.2131, 7.44E-05
+            0.063063,
+            0.044637,
+            0.022429,
+            0.011571,
+            36061.38,
+            0.06121,
+            4.009501
         ]
 
     def create_res_file(self, res_path):
@@ -110,45 +115,48 @@ class Grader:
         }
         self.reports.append(report)
 
-    def grade_assignment_1(self):
+    def grade_assignment_5_fit(self):
         try:
-            import assignment1
+            import assignment5
 
-            R = RESTRICT_INVOCATIONS
-            names = ('f', 'a', 'b', 'n')
-            valss = [(R(10)(f2), 0, 5, 10),
-                     (R(20)(f4), -2, 4, 20),
-                     (R(50)(f3), -1, 5, 50),
-                     (R(20)(f13), 3, 10, 20),
-                     (R(20)(f1), 2, 5, 20),
-                     (R(10)(f7), 3, 16, 10),
-                     (R(10)(f8), 1, 3, 10),
-                     (R(10)(f9), 5, 10, 10),
-                     ]
+            names = ('sample', 'maxtime')
+            valss = [
+                (shape1().sample, 20),
+                (shape2().sample, 20),
+                (shape3().sample, 20),
+                (shape4().sample, 20),
+                (shape5().sample, 20),
+                (shape6().sample, 20),
+                (shape7().sample, 20),
+            ]
             params = [dict(zip(names, vals)) for vals in valss]
 
-            expected_results = [f2, f4, f3, f13, f1, f7, f8, f9]
+            expected_results = [
+                shape1().area(),
+                shape2().area(),
+                shape3().area(),
+                shape4().area(),
+                shape5().area(),
+                shape6().area(),
+                shape7().area()
+            ]
 
             func_error = [
-                SAVEARGS(a=a, b=b, n=n)(
-                    lambda fres, fexp, a, b, n:
-                    sum([
-                        abs(fres(x) - fexp(x))
-                        for x in uniform(low=a, high=b, size=2 * n)
-                    ]) / 2 / n
-                )
-                for _, a, b, n in valss
+                lambda res, exp:
+                abs(abs(res.area()) - abs(exp)) / abs(exp)
+                for c, e in valss
             ]
 
             repeats = 1
 
-            ass = assignment1.Assignment1()
-            self.grade_assignment(ass.interpolate, params, 'Assignment 1', func_error, expected_results, repeats)
+            ass = assignment5.Assignment5()
+            self.grade_assignment(ass.fit_shape, params, 'Assignment 5 fit', func_error, expected_results, repeats)
         except Exception as e:
-            self.add_error_report('Assignment 1', 'interpolate', e, 1)
+            self.add_error_report('Assignment 5 fit', 'fit', e, 1)
+
 
     def report(self):
-        with open(os.path.join(self.dir_path, 'res1.csv'), 'w', newline='', encoding='utf-16') as f:
+        with open(os.path.join(self.dir_path, 'res5fit.csv'), 'w', newline='', encoding='utf-16') as f:
             fieldnames = ['time', 'error', 'last_year_error', 'error_diff']
             writer = csv.DictWriter(f, delimiter='\t', fieldnames=fieldnames)
             writer.writeheader()
@@ -161,7 +169,8 @@ class Grader:
                 })
 
     def grade(self):
-        self.grade_assignment_1()
+        self.grade_assignment_5_fit()
+
         self.report()
         sys.path.remove(self.dir_path)
 

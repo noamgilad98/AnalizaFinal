@@ -401,11 +401,12 @@ class Grader():
 
 
     def grade(self):
-        self.grade_assignment_1()
+        # self.grade_assignment_1()
         # self.grade_assignment_2()
         # self.grade_assignment_3()
-        # self.grade_assignment_4()
-        # self.grade_assignment_5_area()
+        # self.grade_assignment_3_areabetween()
+        #self.grade_assignment_4()
+        self.grade_assignment_5_area()
         # self.grade_assignment_5_fit()
         self.report()
         sys.path.remove(self.dir_path)

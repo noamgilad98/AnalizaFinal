@@ -49,8 +49,14 @@ class Grader:
         self.dir_path = dir_path
         # Last year's error values
         self.last_year_errors = [
-            0.006122, 0.000255, 0.000714, 0.006987, 2.66E-16,
-            0.001902, 132.2131, 7.44E-05
+            0.024475617,
+            0.007580753,
+            0.006200465,
+            0,
+            5,
+            0.019201701,
+            0.055837773,
+            0.016720072,
         ]
 
     def create_res_file(self, res_path):
@@ -110,45 +116,43 @@ class Grader:
         }
         self.reports.append(report)
 
-    def grade_assignment_1(self):
+    def grade_assignment_4(self):
         try:
-            import assignment1
+            import assignment4
 
-            R = RESTRICT_INVOCATIONS
-            names = ('f', 'a', 'b', 'n')
-            valss = [(R(10)(f2), 0, 5, 10),
-                     (R(20)(f4), -2, 4, 20),
-                     (R(50)(f3), -1, 5, 50),
-                     (R(20)(f13), 3, 10, 20),
-                     (R(20)(f1), 2, 5, 20),
-                     (R(10)(f7), 3, 16, 10),
-                     (R(10)(f8), 1, 3, 10),
-                     (R(10)(f9), 5, 10, 10),
+            names = ('f', 'a', 'b', 'd', 'maxtime')
+            valss = [(f2_noise, 0, 5, 10, 5),
+                     (f4_noise, -2, 4, 20, 10),
+                     (f3_noise, -1, 5, 50, 20),
+                     (f13_noise, 3, 10, 20, 15),
+                     (f1_noise, 2, 5, 20, 20),
+                     (f7_noise, 3, 16, 10, 10),
+                     (f8_noise, 1, 3, 10, 15),
+                     (f9_noise, 5, 10, 10, 20)
                      ]
             params = [dict(zip(names, vals)) for vals in valss]
-
             expected_results = [f2, f4, f3, f13, f1, f7, f8, f9]
 
-            func_error = [
-                SAVEARGS(a=a, b=b, n=n)(
-                    lambda fres, fexp, a, b, n:
+            func_error = [  # mean absolute error at 2n points within the [a,b] range
+                SAVEARGS(f=f, a=a, b=b, n=n, t=t)(
+                    lambda fres, fexp, f, a, b, n, t:
                     sum([
                         abs(fres(x) - fexp(x))
                         for x in uniform(low=a, high=b, size=2 * n)
                     ]) / 2 / n
                 )
-                for _, a, b, n in valss
+                for f, a, b, n, t in valss
             ]
 
             repeats = 1
 
-            ass = assignment1.Assignment1()
-            self.grade_assignment(ass.interpolate, params, 'Assignment 1', func_error, expected_results, repeats)
+            ass = assignment4.Assignment4()
+            self.grade_assignment(ass.fit, params, 'Assignment 4', func_error, expected_results, repeats)
         except Exception as e:
-            self.add_error_report('Assignment 1', 'interpolate', e, 1)
+            self.add_error_report('Assignment 4', 'fit', e, 1)
 
     def report(self):
-        with open(os.path.join(self.dir_path, 'res1.csv'), 'w', newline='', encoding='utf-16') as f:
+        with open(os.path.join(self.dir_path, 'res4.csv'), 'w', newline='', encoding='utf-16') as f:
             fieldnames = ['time', 'error', 'last_year_error', 'error_diff']
             writer = csv.DictWriter(f, delimiter='\t', fieldnames=fieldnames)
             writer.writeheader()
@@ -161,7 +165,7 @@ class Grader:
                 })
 
     def grade(self):
-        self.grade_assignment_1()
+        self.grade_assignment_4()
         self.report()
         sys.path.remove(self.dir_path)
 

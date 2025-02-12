@@ -183,7 +183,7 @@ class Grader:
                 })
 
     def grade(self):
-        # self.grade_assignment_3()
+        self.grade_assignment_3()
         self.grade_assignment_3_areabetween()
         self.report()
         sys.path.remove(self.dir_path)
