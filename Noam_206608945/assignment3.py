@@ -5,148 +5,188 @@ import random
 
 class Assignment3:
     def __init__(self):
-        """
-        Here goes any one-time calculation that needs to be made before
-        solving the assignment for specific functions.
-        """
         pass
 
-    def gaussian_quadrature(self, f, a, b, n=5):
-        """ Gaussian Quadrature for precise integration of oscillatory functions """
-        x, w = np.polynomial.legendre.leggauss(n)
-        t = 0.5 * (x + 1) * (b - a) + a  # Transform to [a, b]
-        integral = np.sum(w * f(t) * 0.5 * (b - a))
-        return integral
-
-    def adaptive_simpsons(self, f, a, b, tol=1e-6, depth=15):
-        """ Adaptive Simpson's Rule with increased precision """
-        c = (a + b) / 2
-        h = (b - a) / 6.0
-        fa, fb, fc = f(a), f(b), f(c)
-        simpson_estimate = h * (fa + 4 * fc + fb)
-
-        if depth <= 0:
-            return simpson_estimate
-
-        left_estimate = self.adaptive_simpsons(f, a, c, tol / 2, depth - 1)
-        right_estimate = self.adaptive_simpsons(f, c, b, tol / 2, depth - 1)
-        refined_estimate = left_estimate + right_estimate
-
-        if abs(refined_estimate - simpson_estimate) < 15 * tol:
-            return refined_estimate
-        else:
-            return refined_estimate
-
     def integrate(self, f: callable, a: float, b: float, n: int) -> np.float32:
-        """
-        Hybrid integration using Gaussian Quadrature and Adaptive Simpson's Rule.
-        """
-        if n > 50:
-            return np.float32(self.adaptive_simpsons(f, a, b, tol=1e-6))
-        else:
-            return np.float32(self.gaussian_quadrature(f, a, b, n=10))
+        if n == 1:
+            mid_point = (b - a) / 2
+            return np.float32(f(mid_point) * (b - a))
+
+        if n == 2:
+            return np.float32((f(b) + f(a)) * (b - a) / 2)
+
+        if n < 7 or (b - a) < 5:
+            if n % 2 == 0:
+                n -= 1
+            points = np.linspace(a, b, n)
+            values = np.array([f(x) for x in points])
+            step = (b - a) / (n - 1)
+
+            sum_even = values[0]
+            sum_odd = 0
+            sum_last = values[-1]
+
+            for i in range(1, n - 1):
+                if i % 2 == 0:
+                    sum_even += values[i]
+                    sum_last += values[i]
+                else:
+                    sum_odd += values[i]
+
+            return np.float32(step / 3 * (sum_even + 4 * sum_odd + sum_last))
+
+        if n % 2 == 0:
+            n -= 1
+
+        interval = 5
+        if n > 20:
+            temp = int((1 / ((b - a) / n)) * 1.5)
+            interval = max(interval, temp)
+
+        sample_points = np.array([[x, None] for x in np.linspace(a, b, n)])
+
+        val1 = f(sample_points[interval][0])
+        pos1 = sample_points[interval][0]
+        sample_points[interval][1] = val1
+
+        mid_idx = int((n - interval) / 2)
+        val2 = f(sample_points[mid_idx][0])
+        pos2 = sample_points[mid_idx][0]
+        sample_points[mid_idx][1] = val2
+
+        val3 = f(sample_points[-1][0])
+        pos3 = sample_points[-1][0]
+        sample_points[-1][1] = val3
+
+        evaluated = 3
+
+        if np.abs((val2 - val1) / (pos2 - pos1)) <= 0.25 and np.abs((val3 - val2) / (pos3 - pos2)) <= 0.15:
+            area = ((pos3 - pos2) * ((val3 + val2) / 2)) + ((pos2 - pos1) * ((val2 + val1) / 2))
+            val4 = f(sample_points[2][0])
+            pos4 = sample_points[2][0]
+            evaluated += 1
+
+            while (n - evaluated) >= 2:
+                area += ((pos1 - pos4) * ((val1 + val4) / 2))
+                val1, pos1 = val4, pos4
+                pos4 = (pos1 + a) / 2
+                val4 = f(pos4)
+                evaluated += 1
+
+            area += ((pos1 - pos4) * ((val1 + val4) / 2))
+            val1, pos1 = val4, pos4
+            val4, pos4 = f(a), a
+            area += ((pos1 - pos4) * ((val1 + val4) / 2))
+
+            return np.float32(area)
+
+        for point in sample_points:
+            if point[1] is None:
+                point[1] = f(point[0])
+
+        values = np.transpose(sample_points)[1]
+        step = (b - a) / (n - 1)
+
+        sum_even = values[0]
+        sum_odd = 0
+        sum_last = values[-1]
+
+        for i in range(1, n - 1):
+            if i % 2 == 0:
+                sum_even += values[i]
+                sum_last += values[i]
+            else:
+                sum_odd += values[i]
+
+        return np.float32(step / 3 * (sum_even + 4 * sum_odd + sum_last))
 
     def areabetween(self, f1: callable, f2: callable) -> np.float32:
-        def solve_point(fn, p1, p2, eps=1e-8, max_it=15):
-            # Try iterative method first
-            x = p1
-            for _ in range(max_it):
-                y = fn(x)
-                if abs(y) < eps: return x
-                d = (fn(x + eps) - y) / eps
-                if abs(d) < eps:
-                    # Fall back to division method
-                    while abs(p2 - p1) > eps:
-                        m = (p1 + p2) / 2
-                        if abs(fn(m)) < eps:
-                            return m
-                        elif np.sign(fn(p1)) == np.sign(fn(m)):
-                            p1 = m
-                        else:
-                            p2 = m
-                    return (p1 + p2) / 2
-                x = x - y / d
-            return (p1 + p2) / 2
+        def calc_slope(f, x):
+            h = 1e-6
+            return (f(x + h) - f(x)) / h
 
-        fn = lambda x: f1(x) - f2(x)
-        pts = np.linspace(1, 100, 150)
-        ys = np.array([fn(x) for x in pts])
-        x1 = x2 = n = 0
+        def find_root_newton(f, start, maxerr=0.0001, max_steps=15):
+            x = start
+            for _ in range(max_steps):
+                y = f(x)
+                if abs(y) < maxerr:
+                    return x
 
-        if abs(ys[0]) > 1e-8:
-            for i in range(len(pts) - 1):
-                if ys[i] * ys[i + 1] < 0:
-                    x1 = solve_point(fn, pts[i], pts[i + 1])
-                    n += 1
-                    if abs(ys[-1]) > 1e-8:
-                        for j in range(len(pts) - 1, i, -1):
-                            if ys[j] * ys[j - 1] < 0:
-                                x2 = solve_point(fn, pts[j - 1], pts[j])
-                                n += 1
+                slope = calc_slope(f, x)
+                if slope == 0:
+                    return None
+
+                x = x - y / slope
+            return None
+
+        def find_root_binary(f, start, end, tol=0.0001):
+            mid = (start + end) / 2
+            if np.abs(f(mid)) < tol:
+                return mid
+            elif np.sign(f(start)) == np.sign(f(mid)):
+                return find_root_binary(f, mid, end, tol)
+            elif np.sign(f(end)) == np.sign(f(mid)):
+                return find_root_binary(f, start, mid, tol)
+
+        def locate_root(f, start, end):
+            root = find_root_newton(f, start)
+            if root is None:
+                root = find_root_binary(f, start, end)
+            return root
+
+        func_diff = lambda x: f1(x) - f2(x)
+        x_points = np.linspace(1, 100, 150)
+        y_vals = np.array([func_diff(x) for x in x_points])
+
+        root1 = root2 = roots_found = 0
+
+        if y_vals[0] != 0:
+            for i in range(len(y_vals) - 1):
+                if y_vals[i] * y_vals[i + 1] < 0:
+                    root1 = locate_root(func_diff, x_points[i], x_points[i + 1])
+                    roots_found += 1
+
+                    if y_vals[-1] != 0:
+                        for j in range(len(y_vals) - 1, i, -1):
+                            if y_vals[j] * y_vals[j - 1] < 0:
+                                root2 = locate_root(func_diff, x_points[j - 1], x_points[j])
+                                roots_found += 1
                                 break
                     else:
-                        x2, n = pts[-1], n + 1
+                        root2, roots_found = x_points[-1], roots_found + 1
                     break
         else:
-            x1, n = pts[0], 1
-            if abs(ys[-1]) > 1e-8:
-                for j in range(len(pts) - 1, 0, -1):
-                    if ys[j] * ys[j - 1] < 0:
-                        x2 = solve_point(fn, pts[j - 1], pts[j])
-                        n += 1
+            root1, roots_found = x_points[0], roots_found + 1
+            if y_vals[-1] != 0:
+                for j in range(len(y_vals) - 1, 0, -1):
+                    if y_vals[j] * y_vals[j - 1] < 0:
+                        root2 = locate_root(func_diff, x_points[j - 1], x_points[j])
+                        roots_found += 1
                         break
             else:
-                x2, n = pts[-1], n + 1
+                root2, roots_found = x_points[-1], roots_found + 1
 
-        if n <= 1 or abs(x2 - x1) <= 0.002: return np.float32(None)
+        if roots_found <= 1 or abs(root2 - root1) <= 0.002:
+            return np.float32(None)
 
-        fn = lambda x: abs(f1(x) - f2(x))
-        k = int((x2 - x1) * 40)
-        if k % 2 == 0: k += 1
-        h = (x2 - x1) / (k - 1)
-        xs = np.linspace(x1, x2, k)
-        ys = np.array([fn(x) for x in xs])
-        even = sum(ys[2:-1:2])
-        odd = sum(ys[1:-1:2])
+        abs_diff = lambda x: abs(f1(x) - f2(x))
+        n_points = int((root2 - root1) * 40)
+        if n_points % 2 == 0:
+            n_points += 1
 
-        return np.float32(h / 3 * (ys[0] + 4 * odd + 2 * even + ys[-1]))
-##########################################################################
+        step = (root2 - root1) / (n_points - 1)
+        x_vals = np.linspace(root1, root2, n_points)
+        y_vals = np.array([abs_diff(x) for x in x_vals])
 
-import unittest
-from sampleFunctions import *
-from tqdm import tqdm
+        sum_even = y_vals[0]
+        sum_odd = 0
+        sum_last = y_vals[-1]
 
+        for i in range(1, n_points - 1):
+            if i % 2 == 0:
+                sum_even += y_vals[i]
+                sum_last += y_vals[i]
+            else:
+                sum_odd += y_vals[i]
 
-class TestAssignment3(unittest.TestCase):
-
-    def test_integrate_float32(self):
-        ass3 = Assignment3()
-        f1 = np.poly1d([-1, 0, 1])
-        r = ass3.integrate(f1, -1, 1, 10)
-        self.assertEqual(r.dtype, np.float32)
-
-    def test_integrate_hard_case(self):
-        ass3 = Assignment3()
-        f1 = strong_oscilations()
-        r = ass3.integrate(f1, 0.09, 10, 2000)  # Increased sample points for accuracy
-        true_result = -7.78662 * 10 ** 33
-        self.assertGreaterEqual(0.001, abs((r - true_result) / true_result))
-
-
-if __name__ == "__main__":
-    unittest.main()
-
-"""
-3.1
-Uses Adaptive Simpson’s Rule for accuracy and Gaussian Quadrature for oscillatory functions. Ensures np.float32 precision and adapts integration based on function behavior.
-
-3.2
-Finds intersection points using Assignment2.intersections(), then integrates |f1(x) - f2(x)| over each segment using Adaptive Simpson’s Rule for accuracy.
-
-3.3
-The function oscillates rapidly near x=0, making equally spaced points miss key variations, causing high integration errors.
-
-3.4
-Largest error near x=0.1 due to rapid oscillations. Adaptive integration reduces error, but without it, high-frequency details are lost.
-
-"""
+        return np.float32(step / 3 * (sum_even + 4 * sum_odd + sum_last))

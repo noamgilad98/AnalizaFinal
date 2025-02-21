@@ -1,7 +1,3 @@
-"""
-In this assignment you should find the intersection points for two functions.
-"""
-
 import numpy as np
 import time
 import random
@@ -10,83 +6,101 @@ from collections.abc import Iterable
 
 class Assignment2:
     def __init__(self):
-        """
-        Here goes any one time calculation that need to be made before 
-        solving the assignment for specific functions. 
-        """
-
         pass
 
     def intersections(self, f1: callable, f2: callable, a: float, b: float, maxerr=0.001) -> Iterable:
-        """
-        Find as many intersection points as you can. The assignment will be
-        tested on functions that have at least two intersection points, one
-        with a positive x and one with a negative x.
-        
-        This function may not work correctly if there is infinite number of
-        intersection points. 
+        def calc_derivative(func, point):
+            delta = 1e-6
+            return (func(point + delta) - func(point)) / delta
 
+        def newton_iteration(func, start, end_point, error_bound, iterations):
+            x = start
+            for _ in range(iterations):
+                y_val = func(x)
+                if abs(y_val) < error_bound:
+                    return x
 
-        Parameters
-        ----------
-        f1 : callable
-            the first given function
-        f2 : callable
-            the second given function
-        a : float
-            beginning of the interpolation range.
-        b : float
-            end of the interpolation range.
-        maxerr : float
-            An upper bound on the difference between the
-            function values at the approximate intersection points.
+                d = calc_derivative(func, x)
+                if d == 0:
+                    return None
 
+                x = x - y_val / d
+                if not (start < x < end_point):
+                    return None
 
-        Returns
-        -------
-        X : iterable of approximate intersection Xs such that for each x in X:
-            |f1(x)-f2(x)|<=maxerr.
+            return None
 
-        """
+        def search_segment(func, start, end, step_size, error_bound, iterations):
+            found = np.array([])
+            x_points = np.arange(start, end, step_size)
 
-        # replace this line with your solution
-        X=[0]
-        return X
+            if x_points[-1] < end:
+                x_points = np.append(x_points, end)
 
+            for i in range(len(x_points) - 1):
+                result = newton_iteration(func, x_points[i], x_points[i + 1], error_bound, iterations)
+                if result is not None:
+                    found = np.append(found, result)
 
-##########################################################################
+            return found
 
+        def search_range(func, start, end, error_bound):
+            found = np.array([])
+            range_size = abs(end - start)
 
-import unittest
-from sampleFunctions import *
-from tqdm import tqdm
+            if range_size <= 2:
+                return search_segment(func, start, end, 0.01, error_bound, 5)
 
+            if range_size <= 10:
+                segments = np.linspace(start, end, 6)
+                for i in range(5):
+                    curr = segments[i]
+                    values = np.array([abs(func(curr + j * 0.15)) for j in range(4)])
+                    diff = values.max() - values.min()
 
-class TestAssignment2(unittest.TestCase):
+                    step = 0.02 if diff > 1.5 and abs(values.mean()) <= 2 else 0.1
+                    found = np.append(found, search_segment(func, segments[i], segments[i + 1], step, error_bound, 10))
+                return found
 
-    def test_sqr(self):
+            if range_size <= 50:
+                segments = np.linspace(start, end, 15)
+                for i in range(14):
+                    curr = segments[i]
+                    values = np.array([abs(func(curr + j * 0.001)) for j in range(4)])
+                    diff = values.max() - values.min()
+                    deriv = calc_derivative(func, curr)
 
-        ass2 = Assignment2()
+                    if diff > 0.5 and abs(values.mean()) <= 1.5:
+                        step = 0.02
+                        iters = 10
+                    elif (diff < 0.5 and deriv > 0 and func(curr) > 10) or (
+                            diff < 0.5 and deriv < 0 and func(curr) < 10):
+                        step = 1
+                        iters = 20
+                    else:
+                        step = 0.2
+                        iters = 20
+                    found = np.append(found,
+                                      search_segment(func, segments[i], segments[i + 1], step, error_bound, iters))
+                return found
 
-        f1 = np.poly1d([-1, 0, 1])
-        f2 = np.poly1d([1, 0, -1])
+            segments = np.linspace(start, end, 25)
+            for i in range(24):
+                curr = segments[i]
+                values = np.array([abs(func(curr + j * 0.001)) for j in range(4)])
+                diff = values.max() - values.min()
+                deriv = calc_derivative(func, curr)
 
-        X = ass2.intersections(f1, f2, -1, 1, maxerr=0.001)
+                if diff > 1 and abs(values.mean()) <= 1.5:
+                    step = 0.02
+                    iters = 10
+                elif (diff < 0.5 and deriv > 0 and func(curr) > 15) or (diff < 0.5 and deriv < 0 and func(curr) < 15):
+                    step = 3
+                    iters = 50
+                else:
+                    step = 1
+                    iters = 50
+                found = np.append(found, search_segment(func, segments[i], segments[i + 1], step, error_bound, iters))
+            return found
 
-        for x in X:
-            self.assertGreaterEqual(0.001, abs(f1(x) - f2(x)))
-
-    def test_poly(self):
-
-        ass2 = Assignment2()
-
-        f1, f2 = randomIntersectingPolynomials(10)
-
-        X = ass2.intersections(f1, f2, -1, 1, maxerr=0.001)
-
-        for x in X:
-            self.assertGreaterEqual(0.001, abs(f1(x) - f2(x)))
-
-
-if __name__ == "__main__":
-    unittest.main()
+        return search_range(lambda x: f1(x) - f2(x), a, b, maxerr)
