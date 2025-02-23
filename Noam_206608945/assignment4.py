@@ -8,94 +8,58 @@ class Assignment4:
         pass
 
     def fit(self, f: callable, a: float, b: float, d: int, maxtime: float) -> callable:
-        start = time.time()
+
+        def approximate_derivative(func, x, h=1e-5):
+            return (func(x + h) - func(x - h)) / (2 * h)
+
+        def gauss_seidel_solver(A, b, max_iter=1000, tolerance=1e-6):
+            n = len(b)
+            x = np.zeros_like(b)
+            for _ in range(max_iter):
+                x_new = np.copy(x)
+                for i in range(n):
+                    sum1 = np.dot(A[i, :i], x_new[:i])
+                    sum2 = np.dot(A[i, i + 1 :], x[i + 1 :])
+                    x_new[i] = (b[i] - sum1 - sum2) / A[i, i]
+                if np.linalg.norm(x - x_new, ord=2) < tolerance:
+                    break
+                x = x_new
+            return x
+
+        def polynomial_fit(f, a, b, degree, num_points):
+            x_samples = np.linspace(a, b, num_points)
+            y_samples = np.array([f(x) for x in x_samples])
+            X = np.vstack([x_samples**i for i in range(degree + 1)]).T
+            XT = X.T
+            XTX = XT @ X
+            XTy = XT @ y_samples
+            coeffs = gauss_seidel_solver(XTX, XTy)
+
+            def poly(x):
+                return sum(c * x**i for i, c in enumerate(coeffs))
+
+            return poly
+
+        start_time = time.time()
         f(a)
-        call_time = max(time.time() - start, 0.001)
+        sample_duration = max(time.time() - start_time, 0.001)
 
-        safe_time = maxtime * 0.85
-        n_samples = min(int(safe_time / call_time), 200)
+        max_points = max(int((maxtime * 0.85) / sample_duration), 50)
+        degree = max(d, 1)
+        points_per_segment = max_points // degree
 
-        # Handle edge cases
         if abs(b - a) < 1e-6:
-            y_vals = [f(a) for _ in range(min(10, n_samples))]
-            return lambda x: np.median(y_vals)  # More robust than mean for noisy data
+            avg_value = np.mean([f(a) for _ in range(points_per_segment)])
+            return lambda x: avg_value
 
-        # Adaptive sampling - more points where function changes rapidly
-        x_initial = np.linspace(a, b, min(20, n_samples))
-        y_initial = np.array([f(x) for x in x_initial])
-        differences = np.abs(np.diff(y_initial))
-        weights = np.concatenate([differences, [differences[-1]]])
-        weights = weights / np.sum(weights)
+        polynomials = []
+        segment_boundaries = np.linspace(a, b, degree + 1)
+        for i in range(degree):
+            poly = polynomial_fit(f, segment_boundaries[i], segment_boundaries[i + 1], degree, points_per_segment)
+            polynomials.append(poly)
 
-        # Generate points with higher density in high-variation regions
-        extra_points = n_samples - len(x_initial)
-        if extra_points > 0:
-            additional_x = np.random.choice(x_initial, size=extra_points, p=weights)
-            noise = (b - a) * 0.005 * np.random.randn(extra_points)
-            additional_x = np.clip(additional_x + noise, a, b)
-            x_points = np.sort(np.concatenate([x_initial, additional_x]))
-            y_points = np.array([f(x) for x in x_points])
-        else:
-            x_points, y_points = x_initial, y_initial
+        def combined_polynomial(x):
+            segment = min(max(int((x - a) / (b - a) * degree), 0), degree - 1)
+            return polynomials[segment](x)
 
-        # Normalize with robust scaling
-        x_center = (a + b) / 2
-        x_range = max(abs(b - a), 1e-6)
-        x_scaled = (x_points - x_center) / (x_range / 2)
-
-        y_median = np.median(y_points)
-        y_range = np.percentile(np.abs(y_points - y_median), 95)
-        y_scaled = (y_points - y_median) / (y_range + 1e-6)
-
-        best_coeffs = np.zeros(d + 1)
-        best_error = float('inf')
-
-        # Multiple fitting attempts with different strategies
-        remaining_time = maxtime - (time.time() - start)
-        n_attempts = min(15, max(5, int(remaining_time / 0.1)))
-
-        for attempt in range(n_attempts):
-            if time.time() - start > maxtime * 0.9:
-                break
-
-            # Vary subset size based on attempt number
-            subset_ratio = 0.5 + 0.3 * (attempt / (n_attempts - 1))
-            subset_size = max(20, int(len(x_points) * subset_ratio))
-            indices = np.random.choice(len(x_points), subset_size, replace=False)
-
-            x_subset = x_scaled[indices]
-            y_subset = y_scaled[indices]
-
-            # Progressive fitting with regularization
-            coeffs = np.zeros(d + 1)
-            coeffs[0] = np.median(y_subset)
-
-            # Adaptive regularization
-            reg_strength = 1e-6 * (0.5 ** attempt)
-
-            for degree in range(1, d + 1):
-                for _ in range(3):  # Multiple passes for each degree
-                    residuals = y_subset - sum(c * x_subset ** i for i, c in enumerate(coeffs))
-                    x_power = x_subset ** degree
-                    denom = np.mean(x_power * x_power) + reg_strength
-                    update = np.mean(residuals * x_power) / denom
-                    coeffs[degree] = update
-
-                    # Damping for higher degrees
-                    if degree > 2:
-                        coeffs[degree] *= 0.95
-
-            # Evaluate on full dataset
-            predictions = sum(c * x_scaled ** i for i, c in enumerate(coeffs))
-            current_error = np.mean(np.abs(predictions - y_scaled))
-
-            if current_error < best_error:
-                best_error = current_error
-                best_coeffs = coeffs.copy()
-
-        def fitted_function(x):
-            x_norm = (x - x_center) / (x_range / 2)
-            result = sum(c * x_norm ** i for i, c in enumerate(best_coeffs))
-            return result * y_range + y_median
-
-        return fitted_function
+        return combined_polynomial
