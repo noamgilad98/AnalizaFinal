@@ -1,17 +1,11 @@
 import numpy as np
 import time
-import random
-
 
 class Assignment4:
     def __init__(self):
         pass
 
     def fit(self, f: callable, a: float, b: float, d: int, maxtime: float) -> callable:
-
-        def approximate_derivative(func, x, h=1e-5):
-            return (func(x + h) - func(x - h)) / (2 * h)
-
         def gauss_seidel_solver(A, b, max_iter=1000, tolerance=1e-6):
             n = len(b)
             x = np.zeros_like(b)
@@ -19,7 +13,7 @@ class Assignment4:
                 x_new = np.copy(x)
                 for i in range(n):
                     sum1 = np.dot(A[i, :i], x_new[:i])
-                    sum2 = np.dot(A[i, i + 1 :], x[i + 1 :])
+                    sum2 = np.dot(A[i, i + 1:], x[i + 1:])
                     x_new[i] = (b[i] - sum1 - sum2) / A[i, i]
                 if np.linalg.norm(x - x_new, ord=2) < tolerance:
                     break
@@ -36,7 +30,10 @@ class Assignment4:
             coeffs = gauss_seidel_solver(XTX, XTy)
 
             def poly(x):
-                return sum(c * x**i for i, c in enumerate(coeffs))
+                result = 0.0
+                for c in reversed(coeffs):
+                    result = result * x + c
+                return result
 
             return poly
 
@@ -63,3 +60,17 @@ class Assignment4:
             return polynomials[segment](x)
 
         return combined_polynomial
+
+    def fit_shape(self, generator: callable, maxtime: float) -> 'MyShape':
+        class MyShape:
+            def __init__(self, points):
+                self.points = points
+
+            def contour(self, n):
+                return np.array([self.points[i % len(self.points)] for i in range(n)])
+
+        start_time = time.time()
+        points = []
+        while time.time() - start_time < maxtime:
+            points.append(generator())
+        return MyShape(points)
