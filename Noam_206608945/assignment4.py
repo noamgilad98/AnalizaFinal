@@ -1,76 +1,62 @@
+
+
 import numpy as np
 import time
+
 
 class Assignment4:
     def __init__(self):
         pass
 
     def fit(self, f: callable, a: float, b: float, d: int, maxtime: float) -> callable:
-        def gauss_seidel_solver(A, b, max_iter=1000, tolerance=1e-6):
-            n = len(b)
-            x = np.zeros_like(b)
-            for _ in range(max_iter):
-                x_new = np.copy(x)
-                for i in range(n):
-                    sum1 = np.dot(A[i, :i], x_new[:i])
-                    sum2 = np.dot(A[i, i + 1:], x[i + 1:])
-                    x_new[i] = (b[i] - sum1 - sum2) / A[i, i]
-                if np.linalg.norm(x - x_new, ord=2) < tolerance:
-                    break
-                x = x_new
-            return x
 
-        def polynomial_fit(f, a, b, degree, num_points):
-            x_samples = np.linspace(a, b, num_points)
-            y_samples = np.array([f(x) for x in x_samples])
-            X = np.vstack([x_samples**i for i in range(degree + 1)]).T
-            XT = X.T
-            XTX = XT @ X
-            XTy = XT @ y_samples
-            coeffs = gauss_seidel_solver(XTX, XTy)
+        # Start the timer
+        begin_time = time.time()
 
-            def poly(x):
-                result = 0.0
-                for c in reversed(coeffs):
-                    result = result * x + c
-                return result
+        # Generate x values within the given range
+        x_samples = np.linspace(a, b, 100000)
+        y_samples = []
 
-            return poly
+        # Collect noisy data points within the time limit
+        idx = 0
+        while idx < len(x_samples) and (time.time() - begin_time) < (7 / 8) * maxtime:
+            y_samples.append(f(x_samples[idx]))
+            idx += 1
 
-        start_time = time.time()
-        f(a)
-        sample_duration = max(time.time() - start_time, 0.001)
+        # Trim x_samples to match the number of y_samples collected
+        x_samples = x_samples[:len(y_samples)]
+        y_samples = np.array(y_samples)
 
-        max_points = max(int((maxtime * 0.85) / sample_duration), 50)
-        degree = max(d, 1)
-        points_per_segment = max_points // degree
+        # Build the Vandermonde matrix for polynomial fitting
+        vander_matrix = np.vander(x_samples, d + 1)
 
-        if abs(b - a) < 1e-6:
-            avg_value = np.mean([f(a) for _ in range(points_per_segment)])
-            return lambda x: avg_value
+        # Compute the transpose of the Vandermonde matrix
+        vander_transpose = vander_matrix.T
 
-        polynomials = []
-        segment_boundaries = np.linspace(a, b, degree + 1)
-        for i in range(degree):
-            poly = polynomial_fit(f, segment_boundaries[i], segment_boundaries[i + 1], degree, points_per_segment)
-            polynomials.append(poly)
+        # Prepare the system of equations for least squares
+        A = np.dot(vander_transpose, vander_matrix)
+        b = np.dot(vander_transpose, y_samples)
 
-        def combined_polynomial(x):
-            segment = min(max(int((x - a) / (b - a) * degree), 0), degree - 1)
-            return polynomials[segment](x)
+        # Combine A and b into an augmented matrix
+        augmented_matrix = np.hstack([A, b.reshape(-1, 1)])
 
-        return combined_polynomial
+        # Perform Gaussian elimination on the augmented matrix
+        rows = augmented_matrix.shape[0]
+        for row in range(rows):
+            # Normalize the current row
+            augmented_matrix[row] /= augmented_matrix[row, row]
 
-    def fit_shape(self, generator: callable, maxtime: float) -> 'MyShape':
-        class MyShape:
-            def __init__(self, points):
-                self.points = points
+            # Eliminate the current variable from subsequent rows
+            for next_row in range(row + 1, rows):
+                augmented_matrix[next_row] -= augmented_matrix[row] * augmented_matrix[next_row, row]
 
-            def contour(self, n):
-                return np.array([self.points[i % len(self.points)] for i in range(n)])
+        # Back-substitution to find the polynomial coefficients
+        coeffs = np.zeros(rows)
+        for row in range(rows - 1, -1, -1):
+            coeffs[row] = augmented_matrix[row, -1] - np.sum(augmented_matrix[row, :-1] * coeffs)
 
-        start_time = time.time()
-        points = []
-        while time.time() - start_time < maxtime:
-            points.append(generator())
-        return MyShape(points)
+        # Define the fitted polynomial function
+        def fitted_poly(x):
+            return sum(coeff * x ** power for power, coeff in enumerate(reversed(coeffs)))
+
+        return fitted_poly
